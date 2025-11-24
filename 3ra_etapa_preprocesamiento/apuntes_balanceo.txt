@@ -103,3 +103,13 @@ ventana_temporal_replica
 2     9
 Name: count, dtype: int64
 Nuevo ratio: 2.11
+
+
+-------------------------
+
+SÍ, el desbalance es inherente 
+al problema (pocas réplicas fuertes en la naturaleza)
+✅ NO eliminamos el desbalance, 
+solo lo manejamos con class_weight='balanced'
+✅ El modelo aprende a pesar del desbalance, 
+priorizando detectar la clase minoritaria

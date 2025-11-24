@@ -293,3 +293,76 @@ Dataset alternativo: etapa2_train_balanced.csv
 Target: ventana_temporal_replica (1 vs 2).
 Balance: probar primero filtrado + class_weight; 
 luego comparar con balanceado sin class_weight.
+
+---------------------------
+### ⚠️ CUIDADO: La Accuracy puede Engañar con Datos Desbalanceados
+
+**Pregunta importante:** ¿Por qué kNN tiene mayor Accuracy que Decision Tree si no detecta ninguna réplica?
+
+**Respuesta:** Con datos desbalanceados (92 sin réplica vs 3 con réplica),
+ un modelo puede tener **alta Accuracy simplemente prediciendo siempre 
+ "No habrá réplica"**.
+
+**Ejemplo real con nuestros resultados:**
+- **kNN:** Accuracy=94.7% pero Recall=0% (no detecta NINGUNA réplica)
+- **Decision Tree:** Accuracy=57.9% pero Recall=33.3% 
+(detecta 1 de 3 réplicas)
+
+**¿Cómo es posible?**
+
+kNN predice "No" casi siempre → acierta en 90 de 92 casos 
+negativos = 94.7% accuracy
+Pero falla en los 3 casos positivos → 0% recall (lo que realmente importa)
+
+Decision Tree predice "Sí" más veces → hace 38 falsas alarmas
+Pero detecta 1 de 3 réplicas → 33.3% recall (mejor para seguridad)
+
+**Lección:** En problemas desbalanceados de seguridad, 
+**NO uses Accuracy como métrica principal**. Usa **Recall** 
+(detectar casos peligrosos) y **F1-Score** (balance).
+
+
+-------------------------------------------------
+Promedios (excluyendo folds con 0 positivos):
+Accuracy:  0.724 ± 0.126
+Precision: 0.222 ± 0.098
+Recall:    0.875 ± 0.250
+F1-Score:  0.347 ± 0.137
+
+-----------------------------------------------
+
+
+📊 Resultados Etapa 2 - Clasificación Multiclase
+⚠️ Hallazgo Importante
+El dataset tiene solo 2 clases temporales (no 4):
+
+Clase 1: 24-72h (19 eventos, 76%)
+Clase 2: >72h (6 eventos, 24%)
+Sin clase 0 (0-24h) ni clase 3 en los 25 mainshocks con réplica
+🎯 Rendimiento de Modelos
+Decision Tree (mejor):
+
+Accuracy: 60%
+F1-Macro: 0.524
+Acierta 5/7 réplicas clase 1 (24-72h)
+Acierta 1/3 réplicas clase 2 (>72h)
+kNN (bajo rendimiento):
+
+Accuracy: 10%
+F1-Macro: 0.091
+Solo acierta 1/10 predicciones total
+✅ Modelos Guardados
+decision_tree_etapa2_FINAL.pkl (max_depth=3, entrenado con 25 eventos)
+scaler_etapa2_FINAL.pkl
+imputer_etapa2_FINAL.pkl
+columnas_features_etapa2.txt
+💡 Interpretación Realista
+Para proyecto académico:
+
+✅ Demuestra clasificación multiclase correctamente
+✅ Aplica class_weight='balanced'
+✅ Validación temporal apropiada
+⚠️ Dataset extremadamente pequeño (25 eventos, solo 10 en test)
+El Decision Tree logra 60% accuracy, lo cual es razonable dado 
+el dataset tan pequeño. El sistema está listo para integrarse 
+en la cascada.
