@@ -1,0 +1,105 @@
+Distribución Etapa 1 (mainshocks):
+                       count  percent
+existe_replica_fuerte                
+0                        211    89.41
+1                         25    10.59
+
+Tasa positiva (réplica fuerte ≤72h): 0.106
+
+Tasa positiva por bin de magnitud:
+              eventos  tasa_positiva
+mag_bin                             
+(5.499, 5.8]      132       0.075758
+(5.8, 6.1]         45       0.200000
+(6.1, 6.4]         30       0.033333
+(6.4, 6.7]         12       0.166667
+(6.7, 7.0]         10       0.200000
+(7.0, 8.0]          5       0.000000
+(8.0, 10.0]         2       0.500000
+
+-------------------------------------------------------------------------------
+
+SMOTE aquí es riesgoso porque: pocos positivos (25)
+, posibilidad de crear ejemplos sintéticos físicamente irreales
+
+Análisis balanceo
+
+Análisis Etapa 1 (existe_replica_fuerte)
+
+Conteo: Positivos 25, Negativos 211 → ratio neg/pos ≈ 8.44 (desbalance severo).
+Tasa positiva global: 10.6%.
+Por bins de magnitud: el bin (5.8–6.1] sube a 20% y (6.7–7.0] también 20%; (8.0–10.0] muy pequeño (2 casos, 50% → no confiable). El bin (6.1–6.4] cae a 3.3% (posible artefacto: revisar profundidad o definición de mainshock ahí).
+
+Decisiones para balancear Etapa 1
+Orden recomendado:
+
+1.- Entrenar con class_weight='balanced' (árbol / bosque / logística).
+
+2.-Ajustar umbral de decisión usando curva Precision-Recall 
+  (no aceptar por defecto 0.5).
+
+3.-Si Recall de positivos < objetivo (por ejemplo <0.55) aplicar:
+---EasyEnsemble / BalancedRandomForest (preferible a SMOTE con 
+   solo 25 positivos).
+---Si usas SMOTE: muy conservador (k_neighbors=3, 
+   no generar más de 2× positivos).
+
+4.-Reportar AUC-PR y F1 en split temporal (evitar validación aleatoria).
+
+5.-Opcional: elevar umbral de magnitud de entrenamiento a ≥5.8 
+si mejora tasa positiva sin perder demasiado volumen (re-evaluar counts).
+
+--
+
+Análisis Etapa 2 (ventana_temporal_replica dentro de positivos)
+
+Distribución (solo positivos):
+Clase 1 (0–24h): 19 (76%)
+Clase 2 (24–48h): 2 (8%)
+Clase 3 (48–72h): 4 (16%)
+Clases 2 y 3 son extremadamente pequeñas (especialmente 2). 
+Modelar 3 clases sin refuerzo generará sobreajuste/alta varianza.
+Por qué solo ves 1,2,3 y no 4,5 en Etapa 2
+
+Porque la Etapa 2 la definiste sobre el subconjunto donde existe_replica_fuerte = 1.
+Clases 4 (>72h) y 5 (sin réplica) corresponden a casos donde NO hay réplica 
+fuerte en ≤72h → ya están excluidos al filtrar por positivos. Normal.
+
+Decisiones para balancear Etapa 2
+Recomendado:
+
+1.-Unir clases 2 y 3 → nueva etiqueta “24–72h”. Queda: 0–24h (19) vs 24–72h (6).
+2.-Con ese binario, aplicar:
+---Oversampling simple (replicar filas de la minoría) hasta lograr ~1:2 o 1:1.
+---O class_weight si usas modelos que lo soportan (árboles estándar no siempre lo aprovechan bien; RandomForest sí).
+3.-Si deseas mantener 3 clases:
+---Aplicar técnica de oversampling para clases 2 y 3 (replicar, no SMOTE inicialmente).
+---Evaluar macro-F1; si clase 2 queda con F1≈0, fusionar.
+4.-Alternativa más robusta: tratarlo como problema ordinal
+
+----
+1.0–1.5: balance casi uniforme; no aplicar oversampling, 
+como mucho class_weight ligero.
+1.5–2.5: desbalance moderado; probar primero class_weight y 
+ajuste de umbral; oversampling opcional si la minoría tiene pocos (<50) ejemplos.
+2.5 o minoría <30: desbalance relevante; oversampling simple
+ (réplica) recomendado antes de entrenar para no perder Recall.
+
+5: severo; considerar ensemble balanceado 
+(BalancedRandomForest, EasyEnsemble) y ajuste de umbral.
+
+----
+
+Distribución filtrada etapa 2 (1=0-24h, 2=24-72h):
+ventana_temporal_replica
+1    19
+2     6
+Name: count, dtype: int64
+Ratio: 3.17
+Sugerencia: aplicar oversampling simple (réplica) antes de entrenar.
+Distribución tras oversampling simple:
+ventana_temporal_replica
+1    19
+2     9
+Name: count, dtype: int64
+Nuevo ratio: 2.11

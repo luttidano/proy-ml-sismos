@@ -1,0 +1,44 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.env/
+venv/
+
+# Jupyter/IPython
+.ipynb_checkpoints/
+*.ipynb_convert/
+
+# Data & large artifacts (adjust as needed)
+*.csv
+*.json
+*.parquet
+*.xlsx
+*.h5
+
+# Keep small sample data (uncomment below if you want to track a specific file)
+#!sample_small.csv
+
+# Logs
+*.log
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# VSCode
+.vscode/
+
+# Backup / temp
+*.bak
+*.tmp
+~$*
+
+# Models
+*.pkl
+*.joblib
+
+# Reports (pdf) optionally ignored (comment out if needed)
+#*.pdf

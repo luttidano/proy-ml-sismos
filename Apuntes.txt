@@ -1,0 +1,295 @@
+Apuntes ML
+-------------------------------
+
+Predecir la probabilidad de que ocurra una réplica importante, y un rango de tiempo, usando 
+modelo de árbol de decisión y KNN para las 2 etapas de predicción complementandose mutuamente
+https://www.kaggle.com/datasets/nicolasgonzalezmunoz/earthquakes-on-chile
+
+8.4, Coquimbo 2015
+8,2, Noroeste Iquique, Pisagua 2014
+
+
+
+Fecha más antigua: 2012-03-03 11:01:47
+Fecha más reciente: 2025-05-26 03:50:27
+
+Date Latitud Longitud Profundidad Magnitud
+---------------------------------------------------------------------------------------------
+
+VARIABLES PRINCIPALES
+Columna: id_sismo_principal
+
+Tipo: Texto
+
+Descripción: Identificador único de cada sismo
+
+Cómo se genera: Combinando fecha + latitud + longitud del sismo principal
+----------------------------
+Columna: celda_geografica
+
+Tipo: Texto
+
+Descripción: Zona de agrupación de 1°x1° (approx. 111km)
+
+Cómo se genera: Redondeando latitud y longitud a grados enteros
+----------------------------
+Columna: magnitud_umbral
+
+Tipo: Numérico
+
+Descripción: Magnitud mínima para considerar una réplica como "fuerte"
+
+Cómo se genera: Magnitud del sismo principal menos 1.0
+------------------------------------------------------------------
+--------------------------------------------------------
+VARIABLES OBJETIVO (TARGET)
+Columna: existe_replica_fuerte
+
+Tipo: Binario (1/0)
+
+Descripción: Indica si hubo al menos una réplica fuerte (ETAPA 1)
+
+Cómo se genera: 1 si se encontró réplica ≥ magnitud_umbral en 3 días
+-----------------------
+Columna: ventana_temporal_replica
+
+Tipo: Categórica (1,2,3,4)
+
+Descripción: Indica cuándo ocurrirá la réplica fuerte (ETAPA 2)
+
+Cómo se genera:
+
+1: Réplica en 0-24 horas
+
+2: Réplica en 24-48 horas
+
+3: Réplica en 48-72 horas
+
+4: Réplica después de 72 horas
+---------------------------------------------------------------
+--------------------------------------------------------------
+VARIABLES GEOGRÁFICAS
+Columna: zona_sismica
+
+Tipo: Categórica
+
+Descripción: Región de Chile donde ocurrió el sismo
+
+Cómo se genera: Norte (lat < -30°), Centro (lat -30° a -40°), Sur (lat > -40°)
+--------------------------
+Columna: distancia_a_costa
+
+Tipo: Numérico
+
+Descripción: Distancia aproximada del epicentro a la costa
+
+Cómo se genera: Cálculo de distancia a línea costera de Chile
+--------------------------------------------------------------
+-----------------------------------------------------
+VARIABLES TEMPORALES
+Columna: estacion_año
+
+Tipo: Categórica
+
+Descripción: Estación del año del sismo principal
+
+Cómo se genera: Verano/Otoño/Invierno/Primavera según fecha
+
+-----------------------------------------------------------------------
+-----------------------------------------------------------
+VARIABLES TÉCNICAS
+Columna: es_sismo_somero
+
+Tipo: Binario (1/0)
+
+Descripción: Indica si el sismo es superficial
+
+Cómo se genera: 1 si profundidad < 70km, 0 si ≥ 70km
+---------------------------------------
+
+Columna: intensidad_categoria
+
+Tipo: Categórica
+
+Descripción: Categoría de intensidad del sismo principal
+
+Cómo se genera:
+
+Suave: M < 6.0
+
+Moderado: M 6.0-7.0
+
+Fuerte: M 7.0-8.0
+
+Extremo: M > 8.0
+-------------------------------------------------------------------------
+-----------------------------------------------------------------
+VARIABLES HISTÓRICAS
+Columna: actividad_reciente_zona
+
+Tipo: Numérico
+
+Descripción: Actividad sísmica previa en la zona
+
+Cómo se genera: Cantidad de sismos > M5 en la misma celda en los últimos 30 días
+-----
+ actividad_reciente_zona → AMPLIAR
+Problema: Solo considera sismos > M5
+Mejora:
+
+python
+# Nueva columna: actividad_reciente_completa
+- Sismos > M5 en últimos 15 días
+- Sismos > M6 en últimos 30 días  
+- Sismos > M7 en últimos 90 días
+----------------------------------------------------------------------
+Columna: brecha_magnitud_zona
+
+Tipo: Numérico
+
+Descripción: Diferencia con magnitud máxima histórica de la zona
+
+Cómo se genera: magnitud_principal - máxima_magnitud_registrada_en_la_zona
+-----------------------------------------------------------------------
+Columna: ratio_replicas_historico
+
+Tipo: Numérico
+
+Descripción: Promedio histórico de réplicas por sismo en la zona
+
+Cómo se genera: Total réplicas históricas / Total sismos principales en la celda
+ratio_replicas_historico → DESGLOSAR
+Problema: Demasiado general
+Mejora:
+
+python
+# Tres columnas específicas:
+ratio_replicas_24h: % de sismos con réplica en 0-24h
+ratio_replicas_48h: % de sismos con réplica en 0-48h  
+ratio_replicas_72h: % de sismos con réplica en 0-72h
+--------------------------------------
+Para la COLABORACIÓN Árbol + KNN:
+1. densidad_sismica_zona
+Tipo: Numérico
+
+Descripción: Cantidad total de sismos históricos en la celda
+
+Cómo se genera: count(sismos_totales_en_celda) / área_celda
+
+Razón: KNN necesita saber si la zona tiene suficiente data histórica para confiar en los vecinos
+-------------------------------
+
+2. similitud_promedio_vecinos
+Tipo: Numérico (0-1)
+
+Descripción: Qué tan similares son los vecinos más cercanos
+
+Cómo se genera: Promedio de similitud de los 5 vecinos más cercanos
+
+Razón: Indicador de confianza para KNN - si los vecinos son muy distintos, menor confianza
+------------------------
+3. conflicto_modelos
+Tipo: Binario (1/0)
+
+Descripción: Indica si Árbol y KNN dan predicciones diferentes
+
+Cómo se genera: 1 si (árbol_predice_SÍ y KNN_confianza < 0.3) o viceversa
+
+Razón: Para detectar casos donde los algoritmos no coinciden
+----------------------------
+4. energia_liberada_estimada
+Tipo: Numérico
+
+Descripción: Energía sísmica aproximada en joules
+
+Cómo se genera: 10^(1.5*magnitud + 4.8)
+
+Razón: Feature importante para ambos algoritmos
+-------------------------------------------------
+Variables para el ÁRBOL (Reglas):
+# Features de estructura clara:
+['zona_sismica', 'intensidad_categoria', 'es_sismo_somero', 
+ 'distancia_a_costa', 'estacion_año', 'actividad_reciente_completa']
+
+Variables para el KNN (Similitud):
+# Features de distancia significativas:
+['magnitud', 'profundidad', 'latitud', 'longitud', 'energia_liberada_estimada',
+ 'densidad_sismica_zona', 'ratio_replicas_24h', 'ratio_replicas_48h']
+Variables de CONTROL:
+
+# Para monitorear la colaboración:
+['similitud_promedio_vecinos', 'conflicto_modelos', 'celda_geografica']
+
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+PASO 1: Evaluación de Riesgo (AMBOS)
+   ↓
+Árbol: Calcula probabilidad basada en reglas
+KNN: Busca vecinos similares y su historial
+   ↓
+COMBINACIÓN: Decisión consensuada con nivel de confianza
+
+PASO 2: Estimación Temporal (AMBOS)  
+   ↓
+KNN: Distribución temporal basada en vecinos
+Árbol: Reglas generales de timing
+   ↓
+COMBINACIÓN: Timing probabilístico con explicaciones
+
+
+
+
+
+
+-----------------------------------------------------------------------
+
+Más ejemplos (≥5.5) reducen varianza de tus estimadores; el modelo aprende mejor patrones generales.
+Menos ejemplos (≥6.0) aumentan riesgo de sobreajuste y de que alguna ventana (ej. 48–72h) quede con muy pocos ejemplos.
+
+🔍 Recomendación: USAR ≥ 6.0 como "Sismo Importante"
+¿Por Qué ≥ 6.0?
+1. Calidad sobre Cantidad:
+python
+# Con ≥ 6.0:
+- 121 sismos → Suficiente para entrenar modelos
+- Mejor señal/ruido → Sismos realmente significativos
+- Menos falsos positivos en análisis
+
+# Con ≥ 5.5:
+- 285 sismos → Más datos pero más ruido
+- Incluye sismos que quizás no generan réplicas importantes
+- Mayor desbalance (4018 total vs 285)
+
+-----------------------------------------------------------------------
+Var obj 1
+0: no en < 72 H
+1: si en < 72 H
+
+Var obj 2
+1: 0 24hrs
+2:24 48hrs
+3:48 72hrs
+4: > 72 h
+5: no hubo réplicas
+
+------------------------------------------------------------------------
+
+Para entrenar modelos:
+
+Etapa 1 (clasificar existe_replica_fuerte):
+
+Dataset: seismic_features_fusion_final.csv filtrando es_mainshock==1.
+Target: existe_replica_fuerte (0/1).
+Balance: usar class_weight (no oversampling).
+Etapa 2 (clasificar ventana 0–24h vs 24–72h):
+
+Dataset base: etapa2_train_filtrado.csv 
+(mainshocks con existe_replica_fuerte==1 y ventana_temporal_replica ∈ {1,2}).
+
+Dataset alternativo: etapa2_train_balanced.csv 
+(solo para comparar si mejora Recall; no para análisis estadístico).
+Target: ventana_temporal_replica (1 vs 2).
+Balance: probar primero filtrado + class_weight; 
+luego comparar con balanceado sin class_weight.

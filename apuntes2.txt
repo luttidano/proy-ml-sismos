@@ -1,0 +1,73 @@
+
+Buena pregunta — aquí te explico de forma clara por qué calculamos la energía liberada y su transformada logarítmica, y qué hacer con esas columnas en el pipeline.
+
+¿De dónde viene la fórmula?
+En sismología existe una relación empírica entre magnitud y energía liberada:
+energía ≈ 10^(1.5 * Magnitud + 4.8) (Joules).
+Es una aproximación usada habitualmente para estimar la energía asociada a un sismo a partir de su magnitud.
+¿Por qué estimar energía si ya tenemos Magnitude?
+Intuición física: la magnitud es una escala logarítmica; la energía es una cantidad física directamente relacionada con el impacto. A veces proporciona una señal distinta (por ejemplo, acumula efecto de magnitudes altas).
+Complemento informativo: dos sismos con magnitudes cercanas pueden diferir en energía según pequeñas variaciones; esa diferencia puede ser predictiva para réplicas.
+Permite crear features agregadas (energía acumulada en ventanas temporales, energía media de vecinos) que capturan dinámica no lineal.
+¿Por qué usar log(energía) en lugar de energía cruda?
+Escala: energía crece exponencialmente con la magnitud — los valores son enormes (10^x) y muy sesgados. Eso provoca:
+overflow numérico si guardas valores muy grandes,
+influencia desproporcionada de unos pocos eventos en modelos sensibles a escala (KNN, distancia euclidiana).
+Log reduce el sesgo y hace la distribución más simétrica, facilitando:
+convergencia y estabilidad numérica,
+que distancia/vecindad tenga sentido (KNN),
+interpretabilidad relativa (un incremento en log_energía es una multiplicación en energía).
+Por eso se usa log1p(energía) u otra log10/loge para mantener estabilidad.
+¿Mantener ambas columnas (Magnitude + energía/log_energía) o eliminar alguna?
+Riesgo: alta correlación (colinealidad). Magnitude y log_energía están fuertemente correlacionadas porque la energía se deriva de Magnitude.
+Recomendación práctica:
+Calcular ambas inicialmente.
+Medir correlación entre Magnitude y log_energía. Si la correlación es muy alta (> 0.95), elegir una (preferiblemente log_energía si el downstream usa KNN o modelos que benefician escalas lineales; o Magnitude si quieres mantener interpretabilidad clásica).
+Para DecisionTree la colinealidad no es crítica; para KNN/algoritmos basados en distancia, preferir log_energía y escalarla.
+Mantener la columna raw de energía rara vez es útil (demasiado grande); normalmente se guarda solo log_energía o Magnitude.
+¿Qué usar para cada modelo?
+DecisionTree / RandomForest:
+Pueden manejar features con escalas distintas y no requieren log en absoluto; mantener Magnitude está bien.
+Aun así, log_energía puede mejorar interpretabilidad física de reglas.
+KNN / métodos de distancia / clustering:
+Es crucial usar features escaladas y menos sesgadas — usar log_energía + StandardScaler.
+Modelos lineales:
+Uso de log_energía suele mejorar modelado porque reduce no linealidades.
+Recomendaciones operativas (qué hacer ahora en tu notebook)
+Calcula energia_est y log_energia (como añadiste).
+Comprueba:
+distribución (histograma) de energia_est y de log_energia,
+correlación entre Magnitude y log_energia.
+Decide:
+Si vas a entrenar KNN: usa log_energia (estandarizada) y descarta energia_est cruda.
+Para árboles: puedes mantener Magnitude y log_energia temporalmente; luego usar feature importance para decidir.
+Guardar snapshot: guarda log_energia en el parquet (ya lo creaste). Mantén energia_est si quieres documentar que la calculaste, pero en modelos sustituirla por log_energia.
+Caveats y notas científicas
+Fórmula es aproximada y depende de tipo de magnitud (Mw, ML, etc.). Si tu CSV usa una magnitud distinta, documenta la suposición.
+bloat numérico: usa log1p o log10 y dtype float64; evita guardar energía cruda sin transformarla.
+Interpretación: una diferencia de 1 unidad en Magnitude implica ~31.6 veces más energía; por eso la energía convierte diferencias en multiplicadores grandes.
+Resumen práctico en una línea
+Calcula energía por física, transforma con log (log_energia) para estabilidad y uso en modelos; verifica correlación con Magnitude y elimina la variable redundante según la elección del modelo (KNN → usa log_energia escalada; Árbol → Magnitude es suficiente y más interpretable).
+
+
+--------------------------
+
+
+id_sismo_principal — identificador único
+celda_geografica — agrupación espacial 1°x1°
+magnitud_umbral — umbral para clasificar réplicas
+zona_sismica — categoría geográfica (Norte/Centro/Sur)
+estacion_año — estacionalidad
+depth_cat y es_sismo_somero — profundidad categórica y binaria
+intensidad_categoria — magnitud categorizada
+energia_liberada_estimada y log_energia — energía física (log para estabilidad)
+prev_24h/48h/72h/30d_count y mean_mag — conteos y medias de actividad reciente
+hours_since_last — tiempo desde último evento en celda
+density_per_year — densidad sísmica histórica por celda
+ratio_replicas_24h/48h/72h — proporción histórica de réplicas por ventana
+b_value — b-value Gutenberg-Richter (requiere >=50 eventos por celda)
+distancia_a_costa — placeholder (requiere datos externos GIS)
+
+-----------------------------------------------------
+
+
